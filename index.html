@@ -46,6 +46,7 @@
     .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
     .warn{ background: rgba(255, 193, 7, .12); border: 1px solid rgba(255, 193, 7, .35); padding:10px 12px; border-radius:12px; color:#7a5b00; font-size:13px; }
     .ok{ color: #0a7a2f; font-weight:700; }
+    .advanced{ display:none; }
     @media (min-width: 860px){
       .grid{ grid-template-columns: 1.2fr .8fr; }
     }
@@ -82,10 +83,10 @@
 
     <div class="grid">
       <div class="card">
-        <label for="secret">* 2FA Secret（Base32）或 otpauth 链接</label>
-        <textarea id="secret" class="mono" placeholder="例如：JBSW Y3DP EHPK 3PXP 或 otpauth://totp/..."></textarea>
+        <label for="secret">* 2FA Secret（Base32）</label>
+        <textarea id="secret" class="mono" placeholder="例如：d2cy6jcr32alb4gz772elvzayrumpqlr"></textarea>
 
-        <div class="row3" style="margin-top:12px;">
+        <div class="row3 advanced" style="margin-top:12px;">
           <div>
             <label for="algo">算法</label>
             <select id="algo">
@@ -177,6 +178,14 @@
   let timer = null;
   let lastComputed = "";
 
+  const DEFAULT_ALGO = "SHA-1";
+  const DEFAULT_DIGITS = 6;
+  const DEFAULT_PERIOD = 60;
+
+  elAlgo.value = DEFAULT_ALGO;
+  elDigits.value = String(DEFAULT_DIGITS);
+  elPeriod.value = String(DEFAULT_PERIOD);
+
   // ---------- Helpers ----------
   function setMsg(html, isOk=false){
     elMsg.innerHTML = html ? `<div class="${isOk ? 'ok' : ''}">${html}</div>` : "";
@@ -187,26 +196,6 @@
   }
 
   // Parse otpauth://totp/... ?secret=...&issuer=...&digits=...&period=...&algorithm=...
-  function tryParseOtpAuth(s){
-    if(!s) return null;
-    if(!s.toLowerCase().startsWith("otpauth://")) return null;
-    try{
-      const u = new URL(s);
-      const secret = u.searchParams.get("secret") || "";
-      const digits = u.searchParams.get("digits");
-      const period = u.searchParams.get("period");
-      const algorithm = u.searchParams.get("algorithm"); // e.g. SHA1/SHA256/SHA512
-      return {
-        secret,
-        digits: digits ? Number(digits) : null,
-        period: period ? Number(period) : null,
-        algorithm: algorithm ? algorithm.toUpperCase() : null
-      };
-    }catch(e){
-      return null;
-    }
-  }
-
   // Remove spaces, hyphens, underscores; uppercase
   function cleanBase32(s){
     return (s || "").replace(/[\s\-_]+/g, "").toUpperCase();
@@ -281,26 +270,14 @@
   }
 
   function getParams(){
-    let raw = normalizeInput(elSecret.value);
-    const parsed = tryParseOtpAuth(raw);
-
-    // if otpauth, apply extracted settings
-    if(parsed && parsed.secret){
-      raw = parsed.secret;
-      if(parsed.digits === 6 || parsed.digits === 8) elDigits.value = String(parsed.digits);
-      if(parsed.period === 30 || parsed.period === 60) elPeriod.value = String(parsed.period);
-      if(parsed.algorithm){
-        const map = { "SHA1":"SHA-1", "SHA256":"SHA-256", "SHA512":"SHA-512" };
-        if(map[parsed.algorithm]) elAlgo.value = map[parsed.algorithm];
-      }
-      setMsg("已从 otpauth 链接解析出 secret/参数。", true);
-    }
-
+    const raw = normalizeInput(elSecret.value);
     const secret = cleanBase32(raw);
-    const algo = elAlgo.value;
-    const digits = Number(elDigits.value);
-    const period = Number(elPeriod.value);
-    return { secret, algo, digits, period };
+    return {
+      secret,
+      algo: DEFAULT_ALGO,
+      digits: DEFAULT_DIGITS,
+      period: DEFAULT_PERIOD
+    };
   }
 
   async function refresh(){
