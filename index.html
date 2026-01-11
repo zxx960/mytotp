@@ -141,6 +141,7 @@
 
   let timer = null;
   let lastComputed = "";
+  let nextFetchAt = 0;
 
   const DEFAULT_ALGO = "SHA-1";
   const DEFAULT_DIGITS = 6;
@@ -198,9 +199,22 @@
     };
   }
 
+  async function fetchTotp(secret){
+    const res = await fetch("/api/totp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ secret })
+    });
+    const data = await res.json();
+    if(!res.ok){
+      throw new Error(data && data.error ? data.error : "请求失败");
+    }
+    return data;
+  }
+
   async function refresh(){
     try{
-      const { secret, algo, digits, period } = getParams();
+      const { secret } = getParams();
       if(!secret){
         elCode.textContent = "———";
         elRemain.textContent = "—";
@@ -209,26 +223,35 @@
         return;
       }
 
-      const res = await fetch("/api/totp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ secret })
-      });
-      const data = await res.json();
-      if(!res.ok){
-        throw new Error(data && data.error ? data.error : "请求失败");
-      }
-
+      const data = await fetchTotp(secret);
       elCode.textContent = data.code;
       elCounter.textContent = String(data.counter);
       elRemain.textContent = String(data.remain);
       lastComputed = data.code;
+      nextFetchAt = Date.now() + Number(data.remain) * 1000;
     }catch(err){
       setMsg(String(err && err.message ? err.message : err));
       elCode.textContent = "错误";
       elRemain.textContent = "—";
       elCounter.textContent = "—";
       lastComputed = "";
+      nextFetchAt = 0;
+    }
+  }
+
+  async function tick(){
+    const { secret } = getParams();
+    if(!secret){
+      stop();
+      return;
+    }
+    if(!nextFetchAt){
+      return;
+    }
+    const remain = Math.max(0, Math.ceil((nextFetchAt - Date.now()) / 1000));
+    elRemain.textContent = String(remain);
+    if(remain <= 0){
+      await refresh();
     }
   }
 
@@ -236,7 +259,7 @@
     stop();
     setMsg("");
     refresh();
-    timer = setInterval(refresh, 1000);
+    timer = setInterval(tick, 1000);
   }
 
   function stop(){
