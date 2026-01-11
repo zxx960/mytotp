@@ -135,12 +135,6 @@
             <div id="counter" class="mono">—</div>
           </div>
         </div>
-
-        <div style="margin-top:12px;">
-          <label>下一次 TOTP（预览）</label>
-          <input id="nextCode" class="mono" readonly placeholder="—" />
-          <div class="muted" style="margin-top:6px;">用于核对时钟是否不同步（仅预览）。</div>
-        </div>
       </div>
     </div>
   </div>
@@ -168,7 +162,6 @@
   const elCode = document.getElementById("code");
   const elRemain = document.getElementById("remain");
   const elCounter = document.getElementById("counter");
-  const elNext = document.getElementById("nextCode");
   const elMsg = document.getElementById("msg");
   const genBtn = document.getElementById("genBtn");
   const clearBtn = document.getElementById("clearBtn");
@@ -283,7 +276,6 @@
       const { secret, algo, digits, period } = getParams();
       if(!secret){
         elCode.textContent = "———";
-        elNext.value = "";
         elRemain.textContent = "—";
         elCounter.textContent = "—";
         lastComputed = "";
@@ -299,15 +291,10 @@
       elCode.textContent = cur.code;
       elCounter.textContent = String(cur.counter);
 
-      // next preview
-      const next = await totp(secret, algo, digits, period, now + step);
-      elNext.value = next.code;
-
       lastComputed = cur.code;
     }catch(err){
       setMsg(String(err && err.message ? err.message : err));
       elCode.textContent = "错误";
-      elNext.value = "";
       elRemain.textContent = "—";
       elCounter.textContent = "—";
       lastComputed = "";
