@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local TOTP Generator (Offline)</title>
+  <style>
+    :root{
+      --max: 980px;
+      --bg: #f7f8fa;
+      --card: #ffffff;
+      --text: #111;
+      --muted: #667085;
+      --border: rgba(0,0,0,.10);
+      --shadow: 0 1px 2px rgba(0,0,0,.06), 0 10px 30px rgba(15,23,42,.06);
+      --primary: #2b8dff;
+    }
+    body{ margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC","Microsoft YaHei", sans-serif; background:var(--bg); color:var(--text); }
+    .wrap{ max-width: var(--max); margin: 20px auto; padding: 0 14px; }
+    .top{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 14px 16px; background:var(--card); border:1px solid var(--border); border-radius:14px; box-shadow: var(--shadow); }
+    .title{ display:flex; flex-direction:column; gap:4px; }
+    .title h1{ margin:0; font-size:18px; }
+    .title p{ margin:0; color:var(--muted); font-size:13px; }
+    .btn, button{
+      appearance:none; border:0; cursor:pointer; border-radius:999px;
+      padding:10px 14px; font-weight:700; background:var(--primary); color:white;
+    }
+    .btn.secondary, button.secondary{ background:#eef2ff; color:#1d2b5a; }
+    .btn.ghost, button.ghost{ background:transparent; color:var(--text); border:1px solid var(--border); }
+    .grid{ display:grid; grid-template-columns: 1fr; gap:14px; margin-top:14px; }
+    .card{ background:var(--card); border:1px solid var(--border); border-radius:14px; padding:14px; box-shadow: var(--shadow); }
+    label{ display:block; font-weight:700; margin: 4px 0 8px; }
+    textarea, input, select{
+      width:100%; box-sizing:border-box;
+      border:1px solid var(--border); border-radius:12px; padding:10px 12px;
+      font-size:14px; background:transparent; color:var(--text);
+      outline:none;
+    }
+    textarea{ min-height:92px; resize: vertical; }
+    .row{ display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    .row3{ display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; }
+    .mono{ font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+    .kv{ display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 10px 12px; border:1px dashed var(--border); border-radius:12px; }
+    .bigcode{ font-size:34px; letter-spacing: 2px; font-weight:900; }
+    .muted{ color:var(--muted); font-size:12px; }
+    .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
+    .warn{ background: rgba(255, 193, 7, .12); border: 1px solid rgba(255, 193, 7, .35); padding:10px 12px; border-radius:12px; color:#7a5b00; font-size:13px; }
+    .ok{ color: #0a7a2f; font-weight:700; }
+    @media (min-width: 860px){
+      .grid{ grid-template-columns: 1.2fr .8fr; }
+    }
+    @media (max-width: 640px){
+      .row,.row3{ grid-template-columns:1fr; }
+      .bigcode{ font-size:30px; }
+    }
+
+    /* Dark theme */
+    body.dark{
+      --bg:#0f1115;
+      --card:#121520;
+      --text:#e9eef5;
+      --muted:#9aa4b2;
+      --border: rgba(255,255,255,.12);
+      --shadow: 0 1px 2px rgba(0,0,0,.25), 0 16px 36px rgba(0,0,0,.35);
+      --primary:#7aa2ff;
+    }
+    body.dark .btn.secondary, body.dark button.secondary{ background:#1b2240; color:#e9eef5; }
+    body.dark .warn{ color:#ffe08a; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="title">
+        <h1>本地 TOTP 验证码生成器（离线）</h1>
+        <p>不上传 Secret；全部在浏览器本地计算（WebCrypto / HMAC）。</p>
+      </div>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button id="themeBtn" class="ghost" title="切换主题">🌙 主题</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <label for="secret">* 2FA Secret（Base32）或 otpauth 链接</label>
+        <textarea id="secret" class="mono" placeholder="例如：JBSW Y3DP EHPK 3PXP 或 otpauth://totp/..."></textarea>
+
+        <div class="row3" style="margin-top:12px;">
+          <div>
+            <label for="algo">算法</label>
+            <select id="algo">
+              <option value="SHA-1">SHA-1（常见默认）</option>
+              <option value="SHA-256">SHA-256</option>
+              <option value="SHA-512">SHA-512</option>
+            </select>
+          </div>
+          <div>
+            <label for="digits">位数</label>
+            <select id="digits">
+              <option value="6">6 位</option>
+              <option value="8">8 位</option>
+            </select>
+          </div>
+          <div>
+            <label for="period">周期</label>
+            <select id="period">
+              <option value="30">30 秒</option>
+              <option value="60">60 秒</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button id="genBtn" class="btn">开始生成</button>
+          <button id="copyBtn" class="secondary">复制当前码</button>
+          <button id="clearBtn" class="ghost">清空</button>
+        </div>
+
+        <div id="msg" style="margin-top:12px;"></div>
+
+        <div class="warn" style="margin-top:12px;">
+          提醒：Secret 就是“钥匙”。建议只在可信设备上使用，避免截图/录屏/剪贴板泄露。
+        </div>
+      </div>
+
+      <div class="card">
+        <label>当前 TOTP</label>
+        <div class="kv">
+          <div>
+            <div id="code" class="bigcode mono">———</div>
+            <div class="muted">剩余 <span id="remain">—</span>s（下次刷新）</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="muted">时间片</div>
+            <div id="counter" class="mono">—</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;">
+          <label>下一次 TOTP（预览）</label>
+          <input id="nextCode" class="mono" readonly placeholder="—" />
+          <div class="muted" style="margin-top:6px;">用于核对时钟是否不同步（仅预览）。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ---------- Theme ----------
+  const themeKey = "site-theme";
+  const themeBtn = document.getElementById("themeBtn");
+  const applyTheme = () => {
+    const saved = localStorage.getItem(themeKey);
+    document.body.classList.toggle("dark", saved === "dark");
+  };
+  applyTheme();
+  themeBtn.addEventListener("click", () => {
+    const isDark = document.body.classList.toggle("dark");
+    localStorage.setItem(themeKey, isDark ? "dark" : "light");
+  });
+
+  // ---------- Elements ----------
+  const elSecret = document.getElementById("secret");
+  const elAlgo = document.getElementById("algo");
+  const elDigits = document.getElementById("digits");
+  const elPeriod = document.getElementById("period");
+  const elCode = document.getElementById("code");
+  const elRemain = document.getElementById("remain");
+  const elCounter = document.getElementById("counter");
+  const elNext = document.getElementById("nextCode");
+  const elMsg = document.getElementById("msg");
+  const genBtn = document.getElementById("genBtn");
+  const copyBtn = document.getElementById("copyBtn");
+  const clearBtn = document.getElementById("clearBtn");
+
+  let timer = null;
+  let lastComputed = "";
+
+  // ---------- Helpers ----------
+  function setMsg(html, isOk=false){
+    elMsg.innerHTML = html ? `<div class="${isOk ? 'ok' : ''}">${html}</div>` : "";
+  }
+
+  function normalizeInput(str){
+    return (str || "").trim();
+  }
+
+  // Parse otpauth://totp/... ?secret=...&issuer=...&digits=...&period=...&algorithm=...
+  function tryParseOtpAuth(s){
+    if(!s) return null;
+    if(!s.toLowerCase().startsWith("otpauth://")) return null;
+    try{
+      const u = new URL(s);
+      const secret = u.searchParams.get("secret") || "";
+      const digits = u.searchParams.get("digits");
+      const period = u.searchParams.get("period");
+      const algorithm = u.searchParams.get("algorithm"); // e.g. SHA1/SHA256/SHA512
+      return {
+        secret,
+        digits: digits ? Number(digits) : null,
+        period: period ? Number(period) : null,
+        algorithm: algorithm ? algorithm.toUpperCase() : null
+      };
+    }catch(e){
+      return null;
+    }
+  }
+
+  // Remove spaces, hyphens, underscores; uppercase
+  function cleanBase32(s){
+    return (s || "").replace(/[\s\-_]+/g, "").toUpperCase();
+  }
+
+  // Base32 decode (RFC 4648) -> Uint8Array
+  function base32ToBytes(base32){
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    const s = cleanBase32(base32).replace(/=+$/g, "");
+    if(!s) return new Uint8Array();
+
+    let bits = 0;
+    let value = 0;
+    const out = [];
+    for (let i=0; i<s.length; i++){
+      const idx = alphabet.indexOf(s[i]);
+      if(idx === -1) throw new Error("Secret 不是有效的 Base32（包含非法字符）。");
+      value = (value << 5) | idx;
+      bits += 5;
+      if(bits >= 8){
+        out.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+    return new Uint8Array(out);
+  }
+
+  // HOTP/TOTP per RFC 4226/6238 using WebCrypto
+  async function hmacDigest(keyBytes, algoName, msgBytes){
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "HMAC", hash: { name: algoName } },
+      false,
+      ["sign"]
+    );
+    const sig = await crypto.subtle.sign("HMAC", cryptoKey, msgBytes);
+    return new Uint8Array(sig);
+  }
+
+  function intTo8ByteCounter(counter){
+    const buf = new ArrayBuffer(8);
+    const view = new DataView(buf);
+    // high 32 bits, low 32 bits
+    const hi = Math.floor(counter / 0x100000000);
+    const lo = counter >>> 0;
+    view.setUint32(0, hi);
+    view.setUint32(4, lo);
+    return new Uint8Array(buf);
+  }
+
+  function dynamicTruncate(hmacBytes){
+    const offset = hmacBytes[hmacBytes.length - 1] & 0x0f;
+    const p = ((hmacBytes[offset] & 0x7f) << 24) |
+              ((hmacBytes[offset+1] & 0xff) << 16) |
+              ((hmacBytes[offset+2] & 0xff) << 8) |
+              (hmacBytes[offset+3] & 0xff);
+    return p >>> 0;
+  }
+
+  async function totp(secretB32, algoName, digits, period, timeMs){
+    const keyBytes = base32ToBytes(secretB32);
+    if(keyBytes.length === 0) throw new Error("Secret 为空。");
+
+    const counter = Math.floor((timeMs / 1000) / period);
+    const msg = intTo8ByteCounter(counter);
+    const mac = await hmacDigest(keyBytes, algoName, msg);
+    const bin = dynamicTruncate(mac);
+    const mod = 10 ** digits;
+    const code = String(bin % mod).padStart(digits, "0");
+    return { code, counter };
+  }
+
+  function getParams(){
+    let raw = normalizeInput(elSecret.value);
+    const parsed = tryParseOtpAuth(raw);
+
+    // if otpauth, apply extracted settings
+    if(parsed && parsed.secret){
+      raw = parsed.secret;
+      if(parsed.digits === 6 || parsed.digits === 8) elDigits.value = String(parsed.digits);
+      if(parsed.period === 30 || parsed.period === 60) elPeriod.value = String(parsed.period);
+      if(parsed.algorithm){
+        const map = { "SHA1":"SHA-1", "SHA256":"SHA-256", "SHA512":"SHA-512" };
+        if(map[parsed.algorithm]) elAlgo.value = map[parsed.algorithm];
+      }
+      setMsg("已从 otpauth 链接解析出 secret/参数。", true);
+    }
+
+    const secret = cleanBase32(raw);
+    const algo = elAlgo.value;
+    const digits = Number(elDigits.value);
+    const period = Number(elPeriod.value);
+    return { secret, algo, digits, period };
+  }
+
+  async function refresh(){
+    try{
+      const { secret, algo, digits, period } = getParams();
+      if(!secret){
+        elCode.textContent = "———";
+        elNext.value = "";
+        elRemain.textContent = "—";
+        elCounter.textContent = "—";
+        lastComputed = "";
+        return;
+      }
+
+      const now = Date.now();
+      const step = period * 1000;
+      const remain = Math.ceil((step - (now % step)) / 1000);
+      elRemain.textContent = String(remain);
+
+      const cur = await totp(secret, algo, digits, period, now);
+      elCode.textContent = cur.code;
+      elCounter.textContent = String(cur.counter);
+
+      // next preview
+      const next = await totp(secret, algo, digits, period, now + step);
+      elNext.value = next.code;
+
+      lastComputed = cur.code;
+    }catch(err){
+      setMsg(String(err && err.message ? err.message : err));
+      elCode.textContent = "错误";
+      elNext.value = "";
+      elRemain.textContent = "—";
+      elCounter.textContent = "—";
+      lastComputed = "";
+    }
+  }
+
+  function start(){
+    stop();
+    setMsg("");
+    refresh();
+    // update 4 times per second for smoother countdown
+    timer = setInterval(refresh, 250);
+  }
+
+  function stop(){
+    if(timer){ clearInterval(timer); timer = null; }
+  }
+
+  // ---------- Events ----------
+  genBtn.addEventListener("click", start);
+
+  copyBtn.addEventListener("click", async () => {
+    if(!lastComputed){
+      setMsg("当前没有可复制的验证码。");
+      return;
+    }
+    try{
+      await navigator.clipboard.writeText(lastComputed);
+      setMsg("已复制到剪贴板。", true);
+    }catch(e){
+      // fallback: select visible text (not super reliable on all browsers)
+      try{
+        const tmp = document.createElement("input");
+        tmp.value = lastComputed;
+        document.body.appendChild(tmp);
+        tmp.select();
+        document.execCommand("copy");
+        tmp.remove();
+        setMsg("已复制到剪贴板。", true);
+      }catch(_){
+        setMsg("复制失败：浏览器不允许剪贴板访问。你可以手动选中验证码复制。");
+      }
+    }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    elSecret.value = "";
+    setMsg("");
+    stop();
+    refresh();
+  });
+
+  // auto refresh if user changes params while running
+  [elAlgo, elDigits, elPeriod].forEach(el => el.addEventListener("change", () => {
+    if(timer) refresh();
+  }));
+
+  // Optional: start when user pastes secret
+  elSecret.addEventListener("paste", () => {
+    setTimeout(() => { if(!timer) start(); }, 0);
+  });
+
+})();
+</script>
+</body>
+</html>
