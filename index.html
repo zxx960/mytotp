@@ -113,7 +113,6 @@
 
         <div class="actions">
           <button id="genBtn" class="btn">开始生成</button>
-          <button id="copyBtn" class="secondary">复制当前码</button>
           <button id="clearBtn" class="ghost">清空</button>
         </div>
 
@@ -172,7 +171,6 @@
   const elNext = document.getElementById("nextCode");
   const elMsg = document.getElementById("msg");
   const genBtn = document.getElementById("genBtn");
-  const copyBtn = document.getElementById("copyBtn");
   const clearBtn = document.getElementById("clearBtn");
 
   let timer = null;
@@ -330,30 +328,6 @@
 
   // ---------- Events ----------
   genBtn.addEventListener("click", start);
-
-  copyBtn.addEventListener("click", async () => {
-    if(!lastComputed){
-      setMsg("当前没有可复制的验证码。");
-      return;
-    }
-    try{
-      await navigator.clipboard.writeText(lastComputed);
-      setMsg("已复制到剪贴板。", true);
-    }catch(e){
-      // fallback: select visible text (not super reliable on all browsers)
-      try{
-        const tmp = document.createElement("input");
-        tmp.value = lastComputed;
-        document.body.appendChild(tmp);
-        tmp.select();
-        document.execCommand("copy");
-        tmp.remove();
-        setMsg("已复制到剪贴板。", true);
-      }catch(_){
-        setMsg("复制失败：浏览器不允许剪贴板访问。你可以手动选中验证码复制。");
-      }
-    }
-  });
 
   clearBtn.addEventListener("click", () => {
     elSecret.value = "";
