@@ -57,8 +57,7 @@
   <div class="wrap">
     <div class="top">
       <div class="title">
-        <h1>本地 TOTP 验证码生成器（离线）</h1>
-        <p>不上传 Secret；全部在浏览器本地计算（WebCrypto / HMAC）。</p>
+        <h1>TOTP 验证码生成器</h1>
       </div>
     </div>
 
@@ -188,52 +187,6 @@
     return new Uint8Array(out);
   }
 
-  // HOTP/TOTP per RFC 4226/6238 using WebCrypto
-  async function hmacDigest(keyBytes, algoName, msgBytes){
-    const cryptoKey = await crypto.subtle.importKey(
-      "raw",
-      keyBytes,
-      { name: "HMAC", hash: { name: algoName } },
-      false,
-      ["sign"]
-    );
-    const sig = await crypto.subtle.sign("HMAC", cryptoKey, msgBytes);
-    return new Uint8Array(sig);
-  }
-
-  function intTo8ByteCounter(counter){
-    const buf = new ArrayBuffer(8);
-    const view = new DataView(buf);
-    // high 32 bits, low 32 bits
-    const hi = Math.floor(counter / 0x100000000);
-    const lo = counter >>> 0;
-    view.setUint32(0, hi);
-    view.setUint32(4, lo);
-    return new Uint8Array(buf);
-  }
-
-  function dynamicTruncate(hmacBytes){
-    const offset = hmacBytes[hmacBytes.length - 1] & 0x0f;
-    const p = ((hmacBytes[offset] & 0x7f) << 24) |
-              ((hmacBytes[offset+1] & 0xff) << 16) |
-              ((hmacBytes[offset+2] & 0xff) << 8) |
-              (hmacBytes[offset+3] & 0xff);
-    return p >>> 0;
-  }
-
-  async function totp(secretB32, algoName, digits, period, timeMs){
-    const keyBytes = base32ToBytes(secretB32);
-    if(keyBytes.length === 0) throw new Error("Secret 为空。");
-
-    const counter = Math.floor((timeMs / 1000) / period);
-    const msg = intTo8ByteCounter(counter);
-    const mac = await hmacDigest(keyBytes, algoName, msg);
-    const bin = dynamicTruncate(mac);
-    const mod = 10 ** digits;
-    const code = String(bin % mod).padStart(digits, "0");
-    return { code, counter };
-  }
-
   function getParams(){
     const raw = normalizeInput(elSecret.value);
     const secret = cleanBase32(raw);
@@ -256,16 +209,20 @@
         return;
       }
 
-      const now = Date.now();
-      const step = period * 1000;
-      const remain = Math.ceil((step - (now % step)) / 1000);
-      elRemain.textContent = String(remain);
+      const res = await fetch("/api/totp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret })
+      });
+      const data = await res.json();
+      if(!res.ok){
+        throw new Error(data && data.error ? data.error : "请求失败");
+      }
 
-      const cur = await totp(secret, algo, digits, period, now);
-      elCode.textContent = cur.code;
-      elCounter.textContent = String(cur.counter);
-
-      lastComputed = cur.code;
+      elCode.textContent = data.code;
+      elCounter.textContent = String(data.counter);
+      elRemain.textContent = String(data.remain);
+      lastComputed = data.code;
     }catch(err){
       setMsg(String(err && err.message ? err.message : err));
       elCode.textContent = "错误";
@@ -279,8 +236,7 @@
     stop();
     setMsg("");
     refresh();
-    // update 4 times per second for smoother countdown
-    timer = setInterval(refresh, 250);
+    timer = setInterval(refresh, 1000);
   }
 
   function stop(){
