@@ -54,19 +54,6 @@
       .row,.row3{ grid-template-columns:1fr; }
       .bigcode{ font-size:30px; }
     }
-
-    /* Dark theme */
-    body.dark{
-      --bg:#0f1115;
-      --card:#121520;
-      --text:#e9eef5;
-      --muted:#9aa4b2;
-      --border: rgba(255,255,255,.12);
-      --shadow: 0 1px 2px rgba(0,0,0,.25), 0 16px 36px rgba(0,0,0,.35);
-      --primary:#7aa2ff;
-    }
-    body.dark .btn.secondary, body.dark button.secondary{ background:#1b2240; color:#e9eef5; }
-    body.dark .warn{ color:#ffe08a; }
   </style>
 </head>
 <body>
@@ -75,9 +62,6 @@
       <div class="title">
         <h1>本地 TOTP 验证码生成器（离线）</h1>
         <p>不上传 Secret；全部在浏览器本地计算（WebCrypto / HMAC）。</p>
-      </div>
-      <div style="display:flex; gap:10px; align-items:center;">
-        <button id="themeBtn" class="ghost" title="切换主题">🌙 主题</button>
       </div>
     </div>
 
@@ -141,19 +125,6 @@
 
 <script>
 (() => {
-  // ---------- Theme ----------
-  const themeKey = "site-theme";
-  const themeBtn = document.getElementById("themeBtn");
-  const applyTheme = () => {
-    const saved = localStorage.getItem(themeKey);
-    document.body.classList.toggle("dark", saved === "dark");
-  };
-  applyTheme();
-  themeBtn.addEventListener("click", () => {
-    const isDark = document.body.classList.toggle("dark");
-    localStorage.setItem(themeKey, isDark ? "dark" : "light");
-  });
-
   // ---------- Elements ----------
   const elSecret = document.getElementById("secret");
   const elAlgo = document.getElementById("algo");
