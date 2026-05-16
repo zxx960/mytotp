@@ -1,6 +1,6 @@
-# TOTP 验证码生成器
+# 西牧ai验证码生成器
 
-本地运行的 Google Authenticator 兼容 TOTP（基于时间的一次性密码）生成器。
+本地运行的 Google Authenticator 兼容验证码生成器。
 
 ## 功能
 

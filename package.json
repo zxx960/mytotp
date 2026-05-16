@@ -1,5 +1,5 @@
 {
-  "name": "mytotp",
+  "name": "ximu-ai-code-generator",
   "version": "1.0.0",
   "private": true,
   "main": "server.js",
